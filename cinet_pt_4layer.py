@@ -18,6 +18,7 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
 from shutil import copyfile
 import torch.nn.functional as F
+from sklearn.utils.class_weight import compute_class_weight
 
 
 
@@ -27,7 +28,7 @@ ZIP_PATH = "/home/ubuntu/ToN1.zip"
 TRAIN_SIZE=0.7
 TEST_SIZE=0.15
 VAL_SIZE=0.15
-EPOCH=100
+EPOCH=1
 #===============================#
 # Ignore warnings
 warnings.filterwarnings("ignore")
@@ -204,6 +205,19 @@ class CNN(nn.Module):
 
 # Main Dynamic CNN Class
 class DynamicCNN:
+    def compute_class_weights_pytorch(self):
+        train_dir = f"{self.data_dir}/training/"
+        dataset = datasets.ImageFolder(train_dir)  # Load training dataset
+        targets = dataset.targets
+        class_names = dataset.classes
+
+    
+        class_weights = compute_class_weight('balanced', classes=np.unique(targets), y=targets)
+        class_weights = torch.FloatTensor(class_weights).to(self.device)
+    
+        print(f"Class weights (PyTorch): {dict(zip(class_names, class_weights.cpu().numpy()))}")
+        return class_weights
+    
     def __init__(self, num_classes=None, data_dir=DATA_DIR, train_split=TRAIN_SIZE, val_split=VAL_SIZE, test_split=TEST_SIZE):
         self.num_classes = num_classes
         self.data_dir = data_dir
@@ -270,7 +284,12 @@ class DynamicCNN:
 
     def build_model(self):
         self.model = CNN(self.num_classes).to(self.device)
-        self.criterion = nn.BCEWithLogitsLoss() if self.num_classes == 2 else nn.CrossEntropyLoss()
+        class_weights = self.compute_class_weights_pytorch()
+        if self.num_classes == 2:
+            self.criterion = nn.BCEWithLogitsLoss(pos_weight=class_weights[1])  # pos_weight for positive class
+        else:
+            self.criterion = nn.CrossEntropyLoss(weight=class_weights)
+        #self.criterion = nn.BCEWithLogitsLoss() if self.num_classes == 2 else nn.CrossEntropyLoss()
         self.optimizer = optim.RMSprop(self.model.parameters(), lr=1e-4)
         print(f"Model built for {self.num_classes} classes")
 
