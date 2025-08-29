@@ -33,6 +33,11 @@ pip install pynvml
 ```
 
 ---
+## Variants of CiNeT
+
+### [TensorFlow Version](https://github.com/omeshF/CiNeT/blob/main/cinet_tf_3layer.py)
+
+### [PyTorch Version](https://github.com/omeshF/CiNeT/blob/main/cinet_pt_4layer.py)
 
 ## 📂 Data Structure
 ```
