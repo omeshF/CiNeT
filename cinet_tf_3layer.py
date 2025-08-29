@@ -14,7 +14,7 @@ import seaborn as sns
 import psutil
 import time
 from datetime import datetime
-
+from sklearn.utils.class_weight import compute_class_weight
 
 # === CONFIGURATION VARIABLES ===
 DATA_DIR = "/home/ubuntu/Images/"
@@ -209,6 +209,16 @@ class GPUMemoryMonitor:
         print("="*60)
 
 class DynamicCNN:
+    def compute_class_weights_tensorflow(self):
+        y_train = self.train_generator.classes
+        class_names = list(self.train_generator.class_indices.keys())
+        class_weights_arr = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
+        class_weights = {i: weight for i, weight in enumerate(class_weights_arr)}
+        print("Class weights (TensorFlow):")
+        for i, name in enumerate(class_names):
+            print(f"  {name}: {class_weights[i]:.3f}")
+        return class_weights
+        
     def __init__(self, num_classes=None, data_dir=DATA_DIR, train_split=TRAIN_SIZE, val_split=VAL_SIZE, test_split=TEST_SIZE):
         """
         Initialize the Dynamic CNN classifier with GPU memory monitoring
@@ -600,8 +610,7 @@ class DynamicCNN:
         self.memory_monitor.log_memory_usage("After Data Generators Creation", 
                                            additional_info=f"Batch size: {batch_size}")
 
-    def train(self, epochs=5, steps_per_epoch=None, validation_steps=None):
-        """Train the model with memory monitoring"""
+    def train(self, epochs=EPOCH, steps_per_epoch=None, validation_steps=None):
         if self.model is None:
             print("Model not built. Call build_model() first.")
             return None
@@ -610,46 +619,60 @@ class DynamicCNN:
             print("Data generators not created. Call create_data_generators() first.")
             return None
 
-        # Calculate steps if not provided
+    
         if steps_per_epoch is None:
             steps_per_epoch = self.train_generator.samples // self.train_generator.batch_size
 
         if validation_steps is None:
             validation_steps = self.validation_generator.samples // self.validation_generator.batch_size
 
+    # === Compute Class Weights Based on Training Set Frequencies ===
+        print("\n" + "="*50)
+        print("CLASS WEIGHTING FOR IMBALANCED DATA")
+        print("="*50)
+
+        y_train = self.train_generator.classes
+        class_indices = self.train_generator.class_indices
+        class_names = [name for name, _ in sorted(class_indices.items(), key=lambda x: x[1])]  # Sorted by index
+
+        
+        class_weights_arr = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
+        class_weights = {i: weight for i, weight in enumerate(class_weights_arr)}
+
+        print("Class distribution in training set:")
+        for class_name in class_names:
+            dir_path = os.path.join(self.data_dir, 'training', class_name)
+            count = len(os.listdir(dir_path)) if os.path.exists(dir_path) else 0
+            print(f"  {class_name}: {count} samples")
+
+        print("\nApplied class weights (inverse of frequency):")
+        for i, name in enumerate(class_names):
+            print(f"  {name}: {class_weights[i]:.3f}")
+
         # Log memory before training
         self.memory_monitor.log_memory_usage("Before Training Start")
 
-        # Custom callback for epoch-wise memory monitoring
+    # Custom callback for epoch-wise memory monitoring
+
         class MemoryCallback(tf.keras.callbacks.Callback):
             def __init__(self, memory_monitor):
                 self.memory_monitor = memory_monitor
-                
+            
             def on_epoch_begin(self, epoch, logs=None):
                 self.memory_monitor.log_memory_usage("Training", epoch + 1)
-                
+            
             def on_epoch_end(self, epoch, logs=None):
                 self.memory_monitor.log_memory_usage("Training End", epoch + 1, 
-                                                   additional_info=f"Loss: {logs.get('loss', 'N/A'):.4f}, "
-                                                                  f"Acc: {logs.get('accuracy', 'N/A'):.4f}, "
-                                                                  f"Val_Acc: {logs.get('val_accuracy', 'N/A'):.4f}")
-
-        # Train the model
+                                               additional_info=f"Loss: {logs.get('loss', 'N/A'):.4f}, "
+                                                              f"Acc: {logs.get('accuracy', 'N/A'):.4f}, "
+                                                              f"Val_Acc: {logs.get('val_accuracy', 'N/A'):.4f}")
         memory_callback = MemoryCallback(self.memory_monitor)
-        
-        history = self.model.fit(
-            self.train_generator,
-            epochs=epochs,
-            steps_per_epoch=steps_per_epoch,
-            validation_data=self.validation_generator,
-            validation_steps=validation_steps,
-            callbacks=[memory_callback],
-            verbose=1
-        )
 
-        # Log memory after training
+    # Train the model with class weighting
+        history = self.model.fit(self.train_generator, epochs=epochs, steps_per_epoch=steps_per_epoch, validation_data=self.validation_generator, validation_steps=validation_steps, callbacks=[memory_callback], class_weight=class_weights, verbose=1)
+
+    # Log memory after training
         self.memory_monitor.log_memory_usage("After Training Complete")
-
         return history
 
     def evaluate_model(self):
