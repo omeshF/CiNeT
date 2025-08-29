@@ -24,7 +24,7 @@ ZIP_PATH = "/home/ubuntu/ToN1.zip"
 TRAIN_SIZE=0.7
 TEST_SIZE=0.15
 VAL_SIZE=0.15
-EPOCH=1
+EPOCH=100
 #===============================#
 
 
