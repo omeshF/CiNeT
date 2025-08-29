@@ -24,7 +24,7 @@ pip install tensorflow opencv-python seaborn matplotlib scikit-learn psutil
 
 ### PyTorch Version
 ```bash
-pip install torch torchvision tqdm seaborn opencv-python matplotlib scikit-learn psutil
+pip install torch torchvision tqdm seaborn matplotlib scikit-learn psutil
 ```
 
 ### Optional (GPU monitoring)
