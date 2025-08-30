@@ -43,13 +43,13 @@ pip install pynvml
 ```
 /home/ubuntu/Images/
 ├── data_class1/
-│   ├── image1.jpg
+│   ├── image1.png
 │   └── ...
 ├── data_class2/
-│   ├── image1.jpg
+│   ├── image1.png
 │   └── ...
 └── data_classN/
-    ├── image1.jpg
+    ├── image1.png
     └── ...
 ```
 
